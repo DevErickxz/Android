@@ -1,7 +1,7 @@
 // script.js
 
 // CONFIG INICIAL
-
+console.log("iniciado")
 // Lista global de todas as válvulas, usada na view de votação
 const allValves = Array.from({ length: 48 }, (_, i) => `PL ${i + 1}`);
 
@@ -20,20 +20,21 @@ const confirmadas = {
 
 // Mapeamento de quantidades por área e lado
 const countsByArea = {
-  'Raizer': { A: 13, B: 3,  C: 12, D: 5  },
+  'Raizer': { A: 13, B: 3,  C: 12, D: 4  },
   'Caixa':  { A: 4,  B: 8,  C: 3,  D: 3  }
 };
+
 
 // Quais índices devem ficar quadrados (0‑based) por área→lado
 const squareIndices = {
   'Raizer': {
-    C: [1],
-    D: [2]  // Apenas a Válvula 11 (índice 10) de Raizer C
+    C: [10],
+            // Apenas a Válvula 11 (índice 10) de Raizer C
   },
   'Caixa': {
     // AGORA, 'A' e 'B' estão juntos dentro da mesma chave 'Caixa'
-    B: [0, 4], // Válvula 5 (índice 4) e Válvula 10 (índice 9) de Caixa B
-    A: [2]    // Válvula 3 (índice 2) de Caixa A
+    B: [7, 4], // Válvula 5 (índice 4) e Válvula 10 (índice 9) de Caixa B
+    A: [1]    // Válvula 3 (índice 2) de Caixa A
   }
 };
 
@@ -49,6 +50,10 @@ let userDisplay;
  * Retorna os nomes de válvulas contínuos para a área e lado informados,
  * baseando-se em countsByArea e no mapeamento global de 1 a 48.
  */
+
+
+
+
 function getValvesList(area, side) {
   const counts = countsByArea[area];
   if (!counts || !counts[side]) return [];
@@ -166,10 +171,11 @@ function initValves() {
   // Preenche votos padrão = 1
   const count = countsByArea[currentArea][currentSide];
   for (let i = 0; i < count; i++) {
-    if (!votos[currentArea][currentSide][i]) votos[currentArea][currentSide][i] = 1;
+    if (!votos[currentArea][currentSide][i]) votos[currentArea][currentSide][i] = 0;
     confirmadas[currentArea][currentSide][i] = true;
   }
 
+  ajustarAlturaContainer()
   renderValves();
   bindListeners();
   updateActiveAreaButtonValveView();
@@ -193,12 +199,20 @@ function renderValves() {
   const valvs = allValves.slice(start, start + num);
 
   valvs.forEach((nome, i) => {
-    const nota     = votos[currentArea][currentSide][i] || 1;
+    const nota     = votos[currentArea][currentSide][i] || 0;
     const sqIdxs   = squareIndices[currentArea]?.[currentSide] || [];
     const isSquare = sqIdxs.includes(i);
 
+    // Busca a posição pelo nome da válvula (ex: "valvula-1")
+    const pos =
+      valvulaPositions[currentArea]?.[currentSide]?.[`valvula-${i + 1}`]
+      || { top: 0, left: 0 };
+
     const wrapper = document.createElement('div');
     wrapper.className = 'valvula-wrapper';
+    wrapper.style.position = 'absolute';
+    wrapper.style.top = pos.top + 'px';
+    wrapper.style.left = pos.left + 'px';
     wrapper.innerHTML = `
       <div class="valvula nota-${nota}${isSquare ? ' square' : ''}">
         <div class="valvula-label">${nome}</div>
@@ -224,19 +238,19 @@ function mostrarPergunta(index, nome) {
   perguntaContainer.classList.add('show');
   const box = document.createElement('div');
   box.className = 'pergunta-container';
-  box.innerHTML = `
-    <div class="pergunta">Qual grau (1 a 5) para ${nome}?</div>
-    <div class="respostas">
-      ${[1,2,3,4,5].map(n => `<button>${n}</button>`).join('')}
-    </div>`;
-  // Listener para cada botão
-  box.querySelectorAll('.respostas button').forEach((btn, idx) => {
-    btn.onclick = () => {
-      votos[currentArea][currentSide][index] = idx + 1;
-      perguntaContainer.classList.remove('show');
-      setTimeout(() => { perguntaContainer.innerHTML = ''; renderValves(); }, 300);
-    };
-  });
+box.innerHTML = `
+  <div class="pergunta">Qual grau (0 a 5) para ${nome}?</div>
+  <div class="respostas">
+    ${[0,1,2,3,4,5].map(n => `<button>${n}</button>`).join('')}
+  </div>`;
+// Listener para cada botão
+box.querySelectorAll('.respostas button').forEach((btn, idx) => {
+  btn.onclick = () => {
+    votos[currentArea][currentSide][index] = idx; // idx agora é o valor de 0 a 5
+    perguntaContainer.classList.remove('show');
+    setTimeout(() => { perguntaContainer.innerHTML = ''; renderValves(); }, 300);
+  };
+});
   perguntaContainer.appendChild(box);
 }
 
@@ -281,42 +295,64 @@ async function mostrarResumo() {
   const userDoc = await db.collection('users').doc(user.uid).get();
   const userName = userDoc.data()?.nome || 'Desconhecido';
 
-  let resumoContent = `Registro de Válvulas\nUsuário: ${userName}\n` +
-    `Data/Hora: ${new Date(timestamp).toLocaleString()}\n` +
-    `Área: ${currentArea}\nLado: ${currentSide}\n` +
-    `Pressão Raizer: ${pressaoRaizer || 'Não informada'}\n` +
-    `Pressão Caixa: ${pressaoCaixa || 'Não informada'}\n\n`;
+  // Calcula intensidade e média como antes
+  let somaNotas = 0;
+  let qtdVotadas = 0;
+  ['Raizer', 'Caixa'].forEach(area => {
+    Object.keys(countsByArea[area]).forEach(lado => {
+      const count = countsByArea[area][lado];
+      const start = (() => {
+        const counts = countsByArea[area];
+        const offs = { A:0, B:counts.A, C:counts.A+counts.B, D:counts.A+counts.B+counts.C };
+        return offs[lado];
+      })();
+      for (let i = 0; i < count; i++) {
+        const nota = votos[area][lado][i] ?? 0;
+        if (nota > 0) {
+          somaNotas += nota;
+          qtdVotadas++;
+        }
+      }
+    });
+  });
 
-  const registroData = {
+  const media = qtdVotadas > 0 ? (somaNotas / qtdVotadas) : 0;
+  let intensidade = 'Suave';
+  if (media >= 2.6 && media <= 4.5) intensidade = 'Média';
+  else if (media > 4.5) intensidade = 'Intensa';
+
+const corClasse =
+  intensidade === 'Suave'   ? 'intensidade-suave'
+: intensidade === 'Média'   ? 'intensidade-media'
+:                            'intensidade-intensa';
+
+const resumoHTML = `
+  <div class="dashboard-resumo">
+
+    <p><strong>Usuário:</strong> ${userName}</p>
+    <p><strong>Data/Hora:</strong> ${new Date(timestamp).toLocaleString()}</p>
+    <hr>
+    <div class="intensidade-label">Intensidade: ${intensidade}</div>
+    <div class="intensidade-bola ${corClasse}"></div>
+  </div>
+`;
+
+  // Salva no DB (mantendo todas as válvulas, mas só mostra resumo simples)
+  let registroData = {
     userId: user.uid,
     userName,
     data: timestamp,
-    area: currentArea,
-    lado: currentSide,
     pressaoRaizer: pressaoRaizer || null,
     pressaoCaixa: pressaoCaixa || null,
-    valvulas: {}
+    intensidade,
+    notaIntensidade: media,
+    valvulas: {} // pode manter ou remover, conforme sua lógica
   };
-
-  // Prepara dados por válvula
-  const count = countsByArea[currentArea][currentSide];
-  const start = (() => {
-    const counts = countsByArea[currentArea];
-    const offs = { A:0, B:counts.A, C:counts.A+counts.B, D:counts.A+counts.B+counts.C };
-    return offs[currentSide];
-  })();
-
-  for (let i = 0; i < count; i++) {
-    const nome = allValves[start + i];
-    const nota = votos[currentArea][currentSide][i] || 1;
-    resumoContent += `${nome}: Nota ${nota}\n`;
-    registroData.valvulas[nome] = nota;
-  }
 
   try {
     await db.collection('registros').add(registroData);
     alert('Registro salvo com sucesso!');
-    resumoTextModal.textContent = resumoContent;
+    resumoTextModal.innerHTML = resumoHTML;
     modalResumo.classList.add('show');
   } catch (error) {
     console.error('Erro ao salvar registro:', error);
@@ -476,10 +512,129 @@ document.addEventListener('DOMContentLoaded', () => {
   atualizarSelectValvulasComBaseNaAreaELado();
 });
 
+const valvulaPositions = {
+  Raizer: {
+    A: {
+      "valvula-1": { top: 0, left: 0 },
+      "valvula-2": { top: 0, left: 70 },
+      "valvula-3": { top: 0, left: 140 },
+      "valvula-4": { top: 100, left: 0 },
+      "valvula-5": { top: 100, left: 70 },
+      "valvula-6": { top: 100, left: 140 },
+      "valvula-7": { top: 100, left: 210 },
+      "valvula-8": { top: 200, left: 0 },
+      "valvula-9": { top: 200, left: 70 },
+      "valvula-10": { top: 200, left: 140 },
+      "valvula-11": { top: 200, left: 210 },
+      "valvula-12": { top: 300, left: 70 },
+      "valvula-13": { top: 300, left: 210 }, 
+      // ...
+    },
+    B: {
+    "valvula-1": { top: 0, left: 170 },
+    "valvula-2": { top: 120, left: 170 },
+    "valvula-3": { top: 240, left: 100 },
+      // ...
+    },
+    C:{
+      "valvula-1": {top:0, left: 100},
+      "valvula-2": {top:100, left: 30},
+      "valvula-3": {top:100, left: 100},
+      "valvula-4": {top:100, left: 170},
+      "valvula-5": {top:200, left: 0},
+      "valvula-6": {top:200, left: 70},
+      "valvula-7": {top:200, left: 140},
+      "valvula-8": {top:200, left: 210},
+      "valvula-9": {top:300, left: 0},
+      "valvula-10": {top:300, left: 210},
+      "valvula-11": {top:400, left: 115},
+      "valvula-12": {top:400, left: 210},
+    },
+    D:{
+      "valvula-1": {top:0, left: 200},
+      "valvula-2": {top:100, left: 200},
+      "valvula-3": {top:200, left: 50},
+      "valvula-4": {top:200, left: 200},
+    }
+    // C, D...
+  },
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./service-worker.js')
-    .then(() => console.log('Service Worker registrado!'))
-    .catch(err => console.error('Erro ao registrar o Service Worker:', err));
+
+
+Caixa: {
+  A: {
+    "valvula-1": { top: 0, left: 0 },
+    "valvula-2": { top: 120, left: 0 },
+    "valvula-3": { top: 240, left: 0 },
+    "valvula-4": { top: 360, left: 0 },
+  },
+  B: {
+    "valvula-1": { top: 0,   left: 50 },
+    "valvula-2": { top: 100, left: 50 },
+    "valvula-3": { top: 200,   left: 20 },
+    "valvula-4": { top: 300, left: 0 },
+    "valvula-5": { top: 300, left: 70 },
+    "valvula-6": { top: 100, left: 140 },
+    "valvula-7": { top: 300, left: 140 },
+    "valvula-8": { top: 300, left: 210 },
+  },
+  C:{
+    "valvula-1": { top: 0, left: 0 },
+    "valvula-2": { top: 120, left: 0 },
+    "valvula-3": { top: 240, left: 0 },
+  },
+  D:{
+    "valvula-1": { top: 0, left: 0 },
+    "valvula-2": { top: 120, left: 0 },
+    "valvula-3": { top: 240, left: 0 },
+  },
+  //
+  // C, D...
 }
+};
+
+container = document.getElementById('valvulas-container');
+
+Object.entries(countsByArea).forEach(([area, lados]) => {
+  Object.entries(lados).forEach(([lado, count]) => {
+    for (let i = 1; i <= count; i++) {
+      const key = `${area}-${lado}-${i}`;
+      const pos = valvulaPositions[key] || { top: 0, left: 0 };
+      const wrapper = document.createElement('div');
+      wrapper.className = `valvula-wrapper valvula-${area.toLowerCase()}-${lado.toLowerCase()}${i}`;
+      wrapper.style.top = pos.top + 'px';
+      wrapper.style.left = pos.left + 'px';
+      wrapper.innerHTML = `<div class="valvula">${area} ${lado}${i}</div>`;
+      container.appendChild(wrapper);
+    }
+  });
+});
+
+function ajustarAlturaContainer() {
+  if (currentArea === 'Caixa' && currentSide === 'A') {
+    container.style.height = '400px';
+  } else if (currentArea === 'Caixa' && currentSide === 'B') {
+    container.style.height = '350px';
+  } else if (currentArea === 'Caixa' && currentSide === 'C') {
+    container.style.height = '300px';
+  } else if (currentArea === 'Caixa' && currentSide === 'D') {
+    container.style.height = '300px';
+  } else if (currentArea === 'Raizer' && currentSide === 'A') {
+    container.style.height = '350px';
+  } else if (currentArea === 'Raizer' && currentSide === 'B') {
+    container.style.height = '300px';
+  } else if (currentArea === 'Raizer' && currentSide === 'C') {
+    container.style.height = '500px';
+  } else if (currentArea === 'Raizer' && currentSide === 'D') {
+    container.style.height = '280px';
+  } else {
+    container.style.height = 'auto';
+  }
+}
+
+// Sempre que trocar de lado ou área, chame:
+ajustarAlturaContainer();
+
+
+
 

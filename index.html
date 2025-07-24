@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#4CAF50">
 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -55,17 +53,9 @@
         color: white;
         border-color: #007bff;
     }
-    #statistics-view .chart-container {
-        margin-top: 30px;
-        padding: 1rem;
-        background-color: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        width: 90%; /* Aumenta a largura do container do gráfico */
-        max-width: 900px; /* Limite máximo para o gráfico */
-        margin-left: auto; /* Centraliza */
-        margin-right: auto; /* Centraliza */
-    }
+
+
+
     #statistics-view h2 {
         text-align: center;
         margin-top: 20px;
@@ -170,14 +160,14 @@
         max-width: 900px; /* Limite máximo de largura */
         margin: 20px auto; /* Centraliza */
         padding: 20px;
-        background-color: #fff;
+        background-color: #ffffff67;
         border-radius: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         /* *************** ADIÇÃO IMPORTANTE AQUI *************** */
         height: 550px; /* Altere esta linha */
         /* OU, se preferir uma altura máxima: */
         /* max-height: 600px; */
-    }
+}
 
     /* Estilos para o próprio canvas do gráfico */
     #grafico-valvulas {
@@ -242,8 +232,8 @@
   justify-items: center;
   align-items: start;
   margin-bottom: 2rem;
-  max-width: 1000px;
-  width: 100%;
+  max-width: 270px;
+  max-height: 450px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -333,7 +323,7 @@
 </div>
     <div class="area-buttons">
         <button class="area-button" data-area="Caixa">Ir para Caixa</button>
-        <button class="area-button" data-area="Raizer">Ir para Raizer</button>
+        <button class="area-button" data-area="Raizer">Ir para Raiser</button>
     </div>
 
     <div class="sides">
@@ -430,6 +420,8 @@
 
   <div id="statistics-view" class="view">
     <div class="top-bar">
+      
+
         <button onclick="showView('valve-view')">🔙 Voltar para válvulas</button>
         <h2>Estatísticas de Válvulas</h2>
         <select id="statistics-periodo-select"> <option value="7">Últimos 7 dias</option>
@@ -439,7 +431,7 @@
     </div>
 
     <div class="area-buttons">
-        <button class="area-button" data-area="Raizer">Raizer</button>
+        <button class="area-button" data-area="Raizer">Raiser</button>
         <button class="area-button" data-area="Caixa">Caixa</button>
     </div>
 
@@ -490,7 +482,7 @@
 
         <label for="search-area">Área:</label>
         <select id="search-area">
-            <option value="Raizer">Raizer</option>
+            <option value="Raizer">Raiser</option>
             <option value="Caixa">Caixa</option>
             <option value="all">Todas as Áreas</option>
         </select>
@@ -530,7 +522,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="auth.js"></script>
   <script src="script.js"></script>
   <script src="statistics.js"></script> 
@@ -546,6 +538,7 @@
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    console.log("iniciado")
 
     // Variáveis e funções relacionadas ao Chart.js (Gráfico de Barras)
     let ladoAtualGrafico = 'A';
